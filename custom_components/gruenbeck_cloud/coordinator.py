@@ -93,6 +93,20 @@ class GruenbeckCloudCoordinator(DataUpdateCoordinator[Device]):
             _LOGGER.debug("Disconnect during websocket reset failed", exc_info=True)
 
         if recreate_client:
+            # pygruenbeck_cloud 1.3.3: disconnect() kehrt sofort zurueck, wenn nie
+            # verbunden wurde, und close() ruft vorher leave_sd() (wieder HTTP 500).
+            # Beide Sitzungen des alten Clients deshalb direkt schliessen, sonst
+            # bleiben bei Dauerausfall jede Minute zwei offene Sitzungen liegen.
+            for session in (
+                getattr(old_api, "_ws_session", None),
+                old_api.session if getattr(old_api, "_close_session", False) else None,
+            ):
+                if session is not None and not session.closed:
+                    try:
+                        await session.close()
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.debug("Closing old session failed", exc_info=True)
+
             # Recreate client: library disconnect() no-ops when the socket is already
             # closed but the session can remain stuck, freezing updates (#199).
             self.api = self._create_api()
