@@ -97,7 +97,9 @@ class GruenbeckCloudCoordinator(DataUpdateCoordinator[Device]):
             # closed but the session can remain stuck, freezing updates (#199).
             self.api = self._create_api()
             if old_device is not None:
-                self.api.device = old_device
+                # pygruenbeck_cloud 1.3.3: `device` ist eine Property ohne Setter;
+                # init=False uebernimmt das Geraet ohne neuen Cloud-Aufruf.
+                await self.api.set_device(old_device, init=False)
 
     @callback
     def _listen_websocket(self) -> None:
